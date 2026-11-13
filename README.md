@@ -3,7 +3,7 @@
 A tokenized fund you can actually launch: permissioned shares, NAV-priced subscriptions and redemptions,
 distributions and splits, with a test suite built around the ways real tokenized-asset systems have failed.
 
-> **Status:** reference implementation. 125 tests (115 unit and fuzz, 10 invariants) and a 25-bug mutation
+> **Status:** reference implementation. 128 tests (118 unit and fuzz, 10 invariants) and a 25-bug mutation
 > check pass. It has **not** been independently audited. Read `docs/THREAT-MODEL.md` before using any of it.
 
 ## What is in the box
@@ -95,13 +95,33 @@ Full table: `docs/MUTATION-RESULTS.md`.
 
 ```bash
 forge build
-forge test                        # 125 tests
+forge test                        # 128 tests
 forge test --match-path "test/invariant/*" -vv   # invariants, with a per-run activity summary
 python tools/mutation_check.py    # 25 injected bugs, ~15 minutes
 ```
 
 Requires Foundry. OpenZeppelin Contracts 5.1 and forge-std are vendored under `lib/`. The fuzz seed is
 fixed in `foundry.toml` so results are reproducible; change it to explore other paths.
+
+## The console
+
+`docs/console/index.html` is a single page with no build step. It shows the fund's live state (NAV, supply,
+the open epoch, the queue), runs the daily reconciliation checks from the issuer checklist, and has a panel
+for each role: investor, transfer agent, manager, administrator and issuer. Contract errors are decoded
+into their names, so a rejected call says `NavNotAfterCutoff` instead of a hex string.
+
+Try it against a local node, with no wallet extension needed:
+
+```bash
+anvil --block-time 1
+forge script script/DeployDemo.s.sol --sig "runDemo()" --rpc-url http://127.0.0.1:8545 --broadcast --private-key <anvil key>
+python -m http.server 8765 --directory docs/console
+# open http://localhost:8765/?rpc=http://127.0.0.1:8545
+```
+
+`DeployDemo.s.sol` adds a test-only `DemoOperator` that plays transfer agent, manager, administrator and
+custodian at once, so one visitor can run a whole dealing day. It is the opposite of the role separation
+the threat model asks for, and it is only for testnets.
 
 ## Deploying
 
@@ -131,7 +151,7 @@ Then work through `docs/ISSUER-CHECKLIST.md`.
 
 ## Roadmap
 
-- Sepolia deployment with a one-page admin console.
+- Public Sepolia deployment of the demo.
 - LayerZero and CCIP adapters for the gateway.
 - Fee module (management fee accrual by share dilution).
 

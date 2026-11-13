@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rwa-fund-kit console</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #17202a; --muted: #5f6b76; --line: #dcd9d0;
+    --accent: #0b5d4f; --accent-ink: #ffffff; --ok: #1a7f4b; --bad: #b3261e; --warn: #9a6700;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #10151a; --panel: #182028; --ink: #e8ecef; --muted: #9aa7b2; --line: #2a343e;
+            --accent: #4fc3a8; --accent-ink: #06231d; --ok: #5fd08c; --bad: #ff8a80; --warn: #e3b341; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, "Segoe UI", sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+           padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: .01em; }
+  header h1 span { color: var(--muted); font-weight: 400; }
+  .pill { font: 12px var(--mono); padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
+  main { max-width: 1120px; margin: 0 auto; padding: 20px 16px 60px; display: grid; gap: 18px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .stat { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .stat b { display: block; font: 600 19px var(--mono); margin-top: 2px; overflow-wrap: anywhere; }
+  .stat small { color: var(--muted); }
+  ul.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  ul.checks li { display: flex; gap: 10px; align-items: baseline; }
+  .mark { font: 700 13px var(--mono); width: 44px; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .tabs button { background: none; border: 1px solid var(--line); color: var(--ink); }
+  .tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .panel { display: none; } .panel.on { display: grid; gap: 14px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .row label { min-width: 150px; color: var(--muted); }
+  input, select { font: 14px var(--mono); padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px;
+                  background: var(--bg); color: var(--ink); min-width: 0; }
+  input { width: 190px; } input.wide { width: min(420px, 100%); }
+  button { font: 600 14px system-ui, sans-serif; padding: 7px 13px; border-radius: 6px; border: 1px solid var(--accent);
+           background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+  button.ghost { background: none; color: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .note { color: var(--muted); font-size: 13px; margin: 0; }
+  .steps { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13px; }
+  #log { font: 12.5px/1.55 var(--mono); max-height: 240px; overflow: auto; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .banner { border-left: 4px solid var(--warn); padding: 8px 12px; background: color-mix(in srgb, var(--warn) 10%, transparent); font-size: 13.5px; }
+  a { color: var(--accent); }
+  table { border-collapse: collapse; width: 100%; font: 13px var(--mono); }
+  td { padding: 3px 8px 3px 0; vertical-align: top; } td:first-child { color: var(--muted); white-space: nowrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>rwa-fund-kit <span>console</span></h1>
+  <div class="row">
+    <span class="pill" id="net">not connected</span>
+    <span class="pill" id="acct">no account</span>
+    <select id="localAccounts" hidden></select>
+    <button id="connect">Connect wallet</button>
+  </div>
+</header>
+
+<main>
+  <div class="banner" id="banner">Testnet demonstration of <a href="https://github.com/Arashrahmaniii/rwa-fund-kit">rwa-fund-kit</a>.
+    The contracts are unaudited reference code and the tokens here have no value.</div>
+
+  <section>
+    <h2>Fund at a glance</h2>
+    <div class="stats" id="stats"></div>
+  </section>
+
+  <section>
+    <h2>Daily reconciliation</h2>
+    <ul class="checks" id="checks"></ul>
+  </section>
+
+  <section>
+    <h2>Actions</h2>
+    <div class="tabs" role="tablist" id="tabs"></div>
+
+    <div class="panel" id="p-investor">
+      <table id="me"></table>
+      <div class="row"><label>Subscribe (USDC)</label><input id="depAmt" placeholder="10000" inputmode="decimal">
+        <button data-act="requestDeposit">Request subscription</button>
+        <button class="ghost" data-act="cancelDeposit">Cancel</button></div>
+      <div class="row"><label>Redeem (shares)</label><input id="redAmt" placeholder="1000" inputmode="decimal">
+        <button data-act="requestRedeem">Request redemption</button>
+        <button class="ghost" data-act="cancelRedeem">Cancel</button></div>
+      <div class="row"><label>After settlement</label>
+        <button data-act="claimDeposit">Claim shares</button>
+        <button data-act="claimRedeem">Claim cash</button>
+        <button class="ghost" data-act="claimReturned">Take back unfilled shares</button>
+        <button class="ghost" data-act="claimDistribution">Claim distribution</button></div>
+    </div>
+
+    <div class="panel" id="p-demo">
+      <p class="note">Public demo controls. On a real fund these are three separate organisations; here one test contract plays them all so you can run a dealing day yourself.</p>
+      <ol class="steps">
+        <li>Onboard: you become a verified investor and receive 100,000 test USDC.</li>
+        <li>Investor tab: request a subscription.</li>
+        <li>Close the epoch (the cut-off). Requests are now locked.</li>
+        <li>Value and settle, in a later block. The NAV moves by the drift you choose.</li>
+        <li>Investor tab: claim your shares.</li>
+      </ol>
+      <div class="row"><label>1. Become an investor</label><button data-act="demoOnboard">Onboard me</button></div>
+      <div class="row"><label>3. Cut-off</label><button data-act="demoClose">Close epoch</button></div>
+      <div class="row"><label>4. NAV drift (bps, ±100)</label><input id="drift" value="25" inputmode="numeric">
+        <button data-act="demoSettle">Value and settle</button></div>
+    </div>
+
+    <div class="panel" id="p-agent">
+      <p class="note" data-role-note="agent"></p>
+      <div class="row"><label>Investor wallet</label><input class="wide" id="idWallet" placeholder="0x…"></div>
+      <div class="row"><label>Country (ISO numeric)</label><input id="idCountry" value="276">
+        <label>KYC valid (days)</label><input id="idDays" value="365"></div>
+      <div class="row"><label></label><button data-act="register">Register / renew</button>
+        <button class="ghost" data-act="freeze">Freeze wallet</button>
+        <button class="ghost" data-act="unfreeze">Unfreeze</button></div>
+    </div>
+
+    <div class="panel" id="p-manager">
+      <p class="note" data-role-note="manager"></p>
+      <div class="row"><label>Cut-off</label><button data-act="closeEpoch">Close epoch</button></div>
+      <div class="row"><label>Redemption fill (%)</label><input id="fill" value="100" inputmode="decimal">
+        <button data-act="settle">Settle closed epoch</button></div>
+    </div>
+
+    <div class="panel" id="p-admin">
+      <p class="note" data-role-note="navPoster"></p>
+      <div class="row"><label>New NAV per share</label><input id="navVal" placeholder="1.0025" inputmode="decimal">
+        <button data-act="postNav">Post NAV (valued now)</button></div>
+      <div class="row"><label>Guardian</label><button class="ghost" data-act="confirmNav">Confirm pending NAV</button>
+        <button class="ghost" data-act="rejectNav">Reject</button></div>
+    </div>
+
+    <div class="panel" id="p-issuer">
+      <p class="note" data-role-note="issuer"></p>
+      <div class="row"><label>Split (new-for-old)</label><input id="splitNum" value="2" style="width:70px">
+        <span>for</span><input id="splitDen" value="1" style="width:70px">
+        <button data-act="split">Run split</button></div>
+      <div class="row"><label>Distribution (USDC)</label><input id="distAmt" placeholder="5000" inputmode="decimal">
+        <button data-act="distribute">Fund distribution</button></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Activity</h2>
+    <pre id="log">Ready.</pre>
+  </section>
+
+  <section>
+    <h2>Contracts</h2>
+    <table id="addresses"></table>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.5/ethers.umd.min.js"></script>
+<script>
+"use strict";
+const DEFAULT_RPC = { 11155111: "https://ethereum-sepolia-rpc.publicnode.com" };
+const DEFAULT_CHAIN = 11155111;
+const EXPLORER = { 11155111: "https://sepolia.etherscan.io/address/" };
+
+const ERRORS = [
+  "error ReceiverNotVerified(address to)", "error WalletFrozen(address account)",
+  "error InsufficientUnfrozenShares(address from, uint256 available, uint256 needed)",
+  "error ComplianceRejected(address from, address to, uint256 shares)",
+  "error InsufficientAllowance(address spender, uint256 allowance, uint256 needed)",
+  "error NotAuthorized()", "error ControllerNotEligible(address controller)", "error BelowMinDeposit()",
+  "error RequestLockedInClosedEpoch()", "error NothingToCancel()", "error PreviousEpochNotSettled()",
+  "error NoEpochToSettle()", "error NavNotAfterCutoff(uint64 navAsOf, uint64 closedAt)", "error BadBps()",
+  "error ExceedsClaimable()", "error ControllerFrozen(address controller)", "error ZeroAmount()",
+  "error AsOfInFuture()", "error AsOfNotAfterPrevious()", "error NoPendingNav()",
+  "error StaleNav(uint64 postedAt, uint64 maxStaleness)", "error ZeroNav()", "error BadRatio()",
+  "error NoEligibleShares()", "error EpochAwaitingSettlement()", "error HolderNotVerified(address holder)",
+  "error HolderFrozen(address holder)", "error DriftTooLarge()", "error ExpiryInPast()",
+  "error AccessControlUnauthorizedAccount(address account, bytes32 neededRole)",
+  "error OwnableUnauthorizedAccount(address account)", "error EnforcedPause()",
+  "error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed)",
+  "error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed)",
+];
+const ABI = {
+  payToken: ["function balanceOf(address) view returns (uint256)", "function allowance(address,address) view returns (uint256)",
+    "function approve(address,uint256) returns (bool)"],
+  token: ["function symbol() view returns (string)", "function balanceOf(address) view returns (uint256)",
+    "function sharesOf(address) view returns (uint256)", "function totalSupply() view returns (uint256)",
+    "function totalShares() view returns (uint256)", "function multiplier() view returns (uint256)",
+    "function frozen(address) view returns (bool)", "function allowance(address,address) view returns (uint256)",
+    "function approve(address,uint256) returns (bool)", "function hasRole(bytes32,address) view returns (bool)",
+    "function setAddressFrozen(address,bool)"],
+  registry: ["function isVerified(address) view returns (bool)", "function hasRole(bytes32,address) view returns (bool)",
+    "function registerIdentity(address,uint16,uint8,uint64)"],
+  oracle: ["function nav() view returns (uint256)", "function asOf() view returns (uint64)",
+    "function postedAt() view returns (uint64)", "function pendingNav() view returns (uint256)",
+    "function maxStaleness() view returns (uint64)", "function hasRole(bytes32,address) view returns (bool)",
+    "function postNav(uint256,uint64)", "function confirmPendingNav()", "function rejectPendingNav()"],
+  vault: ["function currentEpoch() view returns (uint64)", "function hasUnsettledEpoch() view returns (bool)",
+    "function reservedAssets() view returns (uint256)", "function reservedShares() view returns (uint256)",
+    "function maxRedeemBpsPerEpoch() view returns (uint256)", "function hasRole(bytes32,address) view returns (bool)",
+    "function epochs(uint64) view returns (uint64 closedAt, uint64 settledAt, uint256 depositAssets, uint256 redeemShares, uint256 sharesMinted, uint256 redeemSharesFilled, uint256 assetsPaid, uint256 nav, uint256 multiplier)",
+    "function accountOf(address) view returns (tuple(uint256 pendingDepositAssets, uint64 depositEpoch, uint256 pendingRedeemShares, uint64 redeemEpoch, uint256 claimableDepositAssets, uint256 claimableDepositShares, uint256 claimableRedeemShares, uint256 claimableRedeemAssets, uint256 claimableReturnedShares))",
+    "function requestDeposit(uint256,address,address) returns (uint256)", "function requestRedeem(uint256,address,address) returns (uint256)",
+    "function cancelDepositRequest(address)", "function cancelRedeemRequest(address)",
+    "function claimDeposit(address,address) returns (uint256)", "function claimRedeem(address,address) returns (uint256)",
+    "function claimReturnedShares(address) returns (uint256)", "function closeEpoch()", "function settleEpoch(uint256)"],
+  holdersModule: ["function holderCount() view returns (uint256)", "function maxHolders() view returns (uint256)"],
+  distributions: ["function claimable(address) view returns (uint256)", "function totalDistributed() view returns (uint256)",
+    "function totalClaimed() view returns (uint256)", "function owner() view returns (address)",
+    "function claim(address) returns (uint256)", "function distribute(uint256)"],
+  actions: ["function hasRole(bytes32,address) view returns (bool)", "function split(uint256,uint256)"],
+  demoOperator: ["function onboard()", "function closeEpoch()", "function valueAndSettle(int256)"],
+};
+const ROLE = n => ethers.id(n);
+const $ = id => document.getElementById(id);
+const fmt = (v, d, p = 2) => Number(ethers.formatUnits(v, d)).toLocaleString("en-US", { maximumFractionDigits: p });
+const short = a => a.slice(0, 6) + "…" + a.slice(-4);
+const when = t => t ? new Date(Number(t) * 1000).toISOString().replace("T", " ").slice(0, 16) + " UTC" : "never";
+
+let provider, signer, account, chainId, dep, c = {}, roles = {}, local = false;
+
+function log(msg) { const el = $("log"); el.textContent = `${new Date().toLocaleTimeString()}  ${msg}\n` + el.textContent; }
+
+function explain(e) {
+  const data = e?.data ?? e?.info?.error?.data ?? e?.error?.data;
+  if (typeof data === "string" && data.length >= 10) {
+    try { const d = new ethers.Interface(ERRORS).parseError(data); if (d) return `${d.name}(${d.args.map(String).join(", ")})`; } catch {}
+  }
+  return e?.shortMessage || e?.reason || e?.message || String(e);
+}
+
+async function loadDeployment() {
+  const res = await fetch(`deployments/${chainId}.json`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`No deployment file for chain ${chainId}. Deploy with script/DeployDemo.s.sol first.`);
+  dep = await res.json();
+  const runner = signer ?? provider;
+  for (const k of Object.keys(ABI)) if (dep[k]) c[k] = new ethers.Contract(dep[k], ABI[k].concat(ERRORS), runner);
+  $("addresses").innerHTML = Object.entries(dep).filter(([k]) => k !== "chainId").map(([k, a]) =>
+    `<tr><td>${k}</td><td>${EXPLORER[chainId] ? `<a href="${EXPLORER[chainId]}${a}" target="_blank" rel="noopener">${a}</a>` : a}</td></tr>`).join("");
+}
+
+async function init() {
+  const rpcParam = new URLSearchParams(location.search).get("rpc");
+  if (rpcParam) {
+    provider = new ethers.JsonRpcProvider(rpcParam);
+    local = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(rpcParam);
+  } else {
+    provider = new ethers.JsonRpcProvider(DEFAULT_RPC[DEFAULT_CHAIN]);
+  }
+  chainId = Number((await provider.getNetwork()).chainId);
+  $("net").textContent = (chainId === 11155111 ? "Sepolia" : `chain ${chainId}`) + (local ? " (local node)" : "");
+  if (local) {
+    // A local development node exposes unlocked accounts; no wallet extension is needed.
+    const accounts = await provider.listAccounts();
+    const sel = $("localAccounts");
+    sel.innerHTML = accounts.map((a, i) => `<option value="${a.address}">local account ${i}: ${short(a.address)}</option>`).join("");
+    sel.hidden = false; $("connect").hidden = true;
+    sel.onchange = () => useLocal(sel.value);
+    await useLocal(accounts[0].address);
+  } else {
+    await loadDeployment(); buildTabs(); await refresh();
+  }
+  setInterval(() => refresh().catch(() => {}), 12000);
+}
+
+async function useLocal(addr) {
+  signer = await provider.getSigner(addr); account = addr;
+  $("acct").textContent = short(addr);
+  await loadDeployment(); buildTabs(); await refresh();
+}
+
+async function connect() {
+  if (!window.ethereum) { log("No wallet found. Install a browser wallet to send transactions; reading works without one."); return; }
+  const bp = new ethers.BrowserProvider(window.ethereum);
+  await bp.send("eth_requestAccounts", []);
+  const net = Number((await bp.getNetwork()).chainId);
+  if (net !== chainId) {
+    try { await bp.send("wallet_switchEthereumChain", [{ chainId: "0x" + chainId.toString(16) }]); }
+    catch { log(`Switch your wallet to chain ${chainId} and connect again.`); return; }
+  }
+  provider = new ethers.BrowserProvider(window.ethereum);
+  signer = await provider.getSigner(); account = await signer.getAddress();
+  $("acct").textContent = short(account); $("connect").textContent = "Connected";
+  await loadDeployment(); buildTabs(); await refresh();
+  window.ethereum.on?.("accountsChanged", () => location.reload());
+  window.ethereum.on?.("chainChanged", () => location.reload());
+}
+
+const TABS = [["investor", "Investor"], ["demo", "Demo operator"], ["agent", "Transfer agent"],
+              ["manager", "Manager"], ["admin", "Administrator"], ["issuer", "Issuer"]];
+function buildTabs() {
+  const tabs = $("tabs"); tabs.innerHTML = "";
+  for (const [id, label] of TABS) {
+    if (id === "demo" && !dep.demoOperator) continue;
+    const b = document.createElement("button");
+    b.textContent = label; b.setAttribute("role", "tab"); b.dataset.tab = id;
+    b.onclick = () => selectTab(id); tabs.appendChild(b);
+  }
+  selectTab(dep.demoOperator ? "demo" : "investor");
+}
+function selectTab(id) {
+  document.querySelectorAll(".panel").forEach(p => p.classList.toggle("on", p.id === "p-" + id));
+  document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === id));
+}
+
+async function refresh() {
+  if (!dep) return;
+  const [nav, asOf, postedAt, pendingNav, maxStale, mult, supply, epoch, unsettled, resA, resS, vaultCash, vaultShares,
+         holders, maxHolders, distTotal, distClaimed, gate, block] = await Promise.all([
+    c.oracle.nav(), c.oracle.asOf(), c.oracle.postedAt(), c.oracle.pendingNav(), c.oracle.maxStaleness(),
+    c.token.multiplier(), c.token.totalSupply(), c.vault.currentEpoch(), c.vault.hasUnsettledEpoch(),
+    c.vault.reservedAssets(), c.vault.reservedShares(), c.payToken.balanceOf(dep.vault), c.token.sharesOf(dep.vault),
+    c.holdersModule.holderCount(), c.holdersModule.maxHolders(), c.distributions.totalDistributed(),
+    c.distributions.totalClaimed(), c.vault.maxRedeemBpsPerEpoch(), provider.getBlock("latest")]);
+  const open = await c.vault.epochs(epoch);
+  const aum = supply * nav / 10n ** 18n;
+  const stat = (label, value, sub = "") => `<div class="stat"><small>${label}</small><b>${value}</b><small>${sub}</small></div>`;
+  $("stats").innerHTML =
+    stat("NAV per share", fmt(nav, 18, 6), "valued " + when(asOf)) +
+    stat("Shares outstanding", fmt(supply, 18), "multiplier " + fmt(mult, 18, 6)) +
+    stat("Fund value", fmt(aum, 18) + " USDC", "supply × NAV") +
+    stat("Epoch", "#" + epoch + (unsettled ? "" : " open"), unsettled ? `#${epoch - 1n} awaiting NAV` : "accepting requests") +
+    stat("Queue, this epoch", fmt(open.depositAssets, 6) + " in", fmt(open.redeemShares * mult / 10n ** 18n, 18) + " shares out") +
+    stat("Investors", `${holders} / ${maxHolders}`, "holder cap") +
+    stat("Redemption gate", Number(gate) / 100 + "%", "of supply per epoch") +
+    stat("Distributed", fmt(distTotal, 6) + " USDC", fmt(distClaimed, 6) + " claimed");
+
+  const age = BigInt(block.timestamp) - postedAt;
+  const check = (ok, text, level = "bad") => `<li><span class="mark ${ok ? "ok" : level}">${ok ? "OK" : level === "warn" ? "NOTE" : "FAIL"}</span><span>${text}</span></li>`;
+  $("checks").innerHTML =
+    check(vaultCash === resA, `Vault cash ${fmt(vaultCash, 6)} USDC equals cash owed to investors ${fmt(resA, 6)}`) +
+    check(vaultShares === resS, `Vault shares held equal shares owed to investors (${fmt(resS * mult / 10n ** 18n, 18)})`) +
+    check(age <= maxStale, `NAV posted ${Math.round(Number(age) / 60)} min ago (limit ${Number(maxStale) / 3600} h)`, "warn") +
+    check(pendingNav === 0n, pendingNav === 0n ? "No NAV waiting for the guardian" : `NAV ${fmt(pendingNav, 18, 6)} is outside the band and waits for the guardian`, "warn") +
+    check(!unsettled, unsettled ? `Epoch #${epoch - 1n} is closed and waiting for a NAV valued after its cut-off` : "No epoch waiting for settlement", "warn");
+
+  if (!account) { $("me").innerHTML = `<tr><td>Wallet</td><td>Connect a wallet to act. Everything above is live without one.</td></tr>`; return; }
+  const [verified, frozen, usdc, bal, a, dist, isAgent, isMgr, isPoster, isGuardian, isIssuer, distOwner] = await Promise.all([
+    c.registry.isVerified(account), c.token.frozen(account), c.payToken.balanceOf(account), c.token.balanceOf(account),
+    c.vault.accountOf(account), c.distributions.claimable(account),
+    c.registry.hasRole(ROLE("AGENT_ROLE"), account), c.vault.hasRole(ROLE("MANAGER_ROLE"), account),
+    c.oracle.hasRole(ROLE("ORACLE_ROLE"), account), c.oracle.hasRole(ROLE("GUARDIAN_ROLE"), account),
+    c.actions.hasRole(ROLE("ISSUER_ROLE"), account), c.distributions.owner()]);
+  roles = { agent: isAgent, manager: isMgr, navPoster: isPoster || isGuardian, issuer: isIssuer || distOwner.toLowerCase() === account.toLowerCase() };
+  const toTokens = s => fmt(s * mult / 10n ** 18n, 18);
+  $("me").innerHTML = [
+    ["Status", (verified ? "verified investor" : "not verified") + (frozen ? ", FROZEN" : "")],
+    ["Wallet", `${fmt(usdc, 6)} USDC · ${fmt(bal, 18)} shares`],
+    ["Waiting for settlement", `${fmt(a.pendingDepositAssets, 6)} USDC subscription · ${toTokens(a.pendingRedeemShares)} shares redemption`],
+    ["Ready to claim", `${toTokens(a.claimableDepositShares)} shares · ${fmt(a.claimableRedeemAssets, 6)} USDC · ${toTokens(a.claimableReturnedShares)} shares returned`],
+    ["Distribution owed", `${fmt(dist, 6)} USDC`],
+  ].map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
+  document.querySelectorAll("[data-role-note]").forEach(n => {
+    n.textContent = roles[n.dataset.roleNote] ? "Your account holds this role." : "Your account does not hold this role; these calls will be rejected by the contracts.";
+  });
+}
+
+async function send(label, fn) {
+  if (!signer) { log("Connect a wallet first."); return; }
+  try {
+    log(`${label}: sending…`);
+    const tx = await fn();
+    const r = await tx.wait();
+    log(`${label}: confirmed in block ${r.blockNumber} (${short(tx.hash)})`);
+  } catch (e) { log(`${label}: FAILED: ${explain(e)}`); }
+  await refresh().catch(() => {});
+}
+async function ensureAllowance(tokenC, spender, amount) {
+  if ((await tokenC.allowance(account, spender)) < amount) await (await tokenC.approve(spender, ethers.MaxUint256)).wait();
+}
+const usdcAmt = id => ethers.parseUnits($(id).value.trim() || "0", 6);
+const shareAmt = id => ethers.parseUnits($(id).value.trim() || "0", 18);
+
+const ACTIONS = {
+  requestDeposit: () => send("Subscription request", async () => { const v = usdcAmt("depAmt"); await ensureAllowance(c.payToken, dep.vault, v); return c.vault.requestDeposit(v, account, account); }),
+  cancelDeposit: () => send("Cancel subscription", () => c.vault.cancelDepositRequest(account)),
+  requestRedeem: () => send("Redemption request", async () => { const v = shareAmt("redAmt"); await ensureAllowance(c.token, dep.vault, v); return c.vault.requestRedeem(v, account, account); }),
+  cancelRedeem: () => send("Cancel redemption", () => c.vault.cancelRedeemRequest(account)),
+  claimDeposit: () => send("Claim shares", () => c.vault.claimDeposit(account, account)),
+  claimRedeem: () => send("Claim cash", () => c.vault.claimRedeem(account, account)),
+  claimReturned: () => send("Take back unfilled shares", () => c.vault.claimReturnedShares(account)),
+  claimDistribution: () => send("Claim distribution", () => c.distributions.claim(account)),
+  demoOnboard: () => send("Onboard", () => c.demoOperator.onboard()),
+  demoClose: () => send("Close epoch", () => c.demoOperator.closeEpoch()),
+  demoSettle: () => send("Value and settle", () => c.demoOperator.valueAndSettle(BigInt($("drift").value.trim() || "0"))),
+  register: () => send("Register identity", async () => {
+    const expiry = BigInt(Math.floor(Date.now() / 1000) + Number($("idDays").value) * 86400);
+    return c.registry.registerIdentity($("idWallet").value.trim(), Number($("idCountry").value), 1, expiry); }),
+  freeze: () => send("Freeze", () => c.token.setAddressFrozen($("idWallet").value.trim(), true)),
+  unfreeze: () => send("Unfreeze", () => c.token.setAddressFrozen($("idWallet").value.trim(), false)),
+  closeEpoch: () => send("Close epoch", () => c.vault.closeEpoch()),
+  settle: () => send("Settle epoch", () => c.vault.settleEpoch(BigInt(Math.round(Number($("fill").value) * 100)))),
+  postNav: () => send("Post NAV", async () => { const b = await provider.getBlock("latest"); return c.oracle.postNav(ethers.parseUnits($("navVal").value.trim(), 18), b.timestamp); }),
+  confirmNav: () => send("Confirm NAV", () => c.oracle.confirmPendingNav()),
+  rejectNav: () => send("Reject NAV", () => c.oracle.rejectPendingNav()),
+  split: () => send("Split", () => c.actions.split(BigInt($("splitNum").value), BigInt($("splitDen").value))),
+  distribute: () => send("Distribution", async () => { const v = usdcAmt("distAmt"); await ensureAllowance(c.payToken, dep.distributions, v); return c.distributions.distribute(v); }),
+};
+document.addEventListener("click", e => { const act = e.target?.dataset?.act; if (act && ACTIONS[act]) ACTIONS[act](); });
+$("connect").onclick = () => connect().catch(e => log("Connect failed: " + explain(e)));
+init().catch(e => log(explain(e)));
+</script>
+</body>
+</html>

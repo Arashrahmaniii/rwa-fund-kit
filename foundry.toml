@@ -5,6 +5,8 @@ libs = ["lib"]
 test = "test"
 solc_version = "0.8.28"
 evm_version = "cancun"
+# The demo deploy script writes the addresses the console reads.
+fs_permissions = [{ access = "read-write", path = "./docs/console/deployments" }]
 optimizer = true
 optimizer_runs = 200
 
