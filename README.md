@@ -6,6 +6,11 @@ distributions and splits, with a test suite built around the ways real tokenized
 > **Status:** reference implementation. 128 tests (118 unit and fuzz, 10 invariants) and a 25-bug mutation
 > check pass. It has **not** been independently audited. Read `docs/THREAT-MODEL.md` before using any of it.
 
+**Live demo on Sepolia:** [open the console](https://arashrahmaniii.github.io/rwa-fund-kit/console/) and
+run a dealing day yourself (a browser wallet with a little Sepolia ETH is all you need). Every contract's
+source is verified on [Sourcify](https://repo.sourcify.dev/11155111/0x1Ed7A2ac9051E705B9bFA4808af12138Af22e053);
+addresses are [below](#sepolia-deployment).
+
 ## What is in the box
 
 | Contract | What it does |
@@ -135,6 +140,42 @@ forge script script/Deploy.s.sol --rpc-url http://127.0.0.1:8545 --broadcast --p
 
 Then work through `docs/ISSUER-CHECKLIST.md`.
 
+**Deploying to Sepolia today:** Sepolia now charges far more gas to create contracts than the Cancun rules
+Foundry simulates locally. FundVault needs about 21.9M gas on Sepolia against about 3.1M in the local
+simulation, and the whole kit used 80.8M against an estimate of 16.4M. Give the script headroom, and pin the
+simulation a few blocks behind the head so a load-balanced public RPC cannot answer "block not found":
+
+```bash
+B=$(( $(cast block-number --rpc-url $RPC) - 6 ))
+forge script script/DeployDemo.s.sol --sig "runDemo()" --rpc-url $RPC --fork-block-number $B \
+  --broadcast --slow --gas-estimate-multiplier 1500 --private-key <key>
+```
+
+Unused gas is not charged, so the multiplier costs nothing extra.
+
+## Sepolia deployment
+
+Deployed 2026-11-13 with `DeployDemo.s.sol` (testnet only: the `DemoOperator` holds operating roles so
+visitors can run a dealing day). All 30 deployment transactions succeeded, and one full dealing day has been
+run on-chain: 10,000 test USDC subscribed at NAV 1.0025 for 9,975.062344 shares. Source for every contract
+is verified on Sourcify.
+
+| Contract | Address |
+|---|---|
+| FundShareToken | [`0x7fb1A3eE5AB7e0A2E84ACaC22E3c0B1EAC09E35a`](https://sepolia.etherscan.io/address/0x7fb1A3eE5AB7e0A2E84ACaC22E3c0B1EAC09E35a) |
+| FundVault | [`0x1Ed7A2ac9051E705B9bFA4808af12138Af22e053`](https://sepolia.etherscan.io/address/0x1Ed7A2ac9051E705B9bFA4808af12138Af22e053) |
+| NavOracle | [`0x60D062b809ff2533fE2A124eEBCcA94274EaaE96`](https://sepolia.etherscan.io/address/0x60D062b809ff2533fE2A124eEBCcA94274EaaE96) |
+| IdentityRegistry | [`0xFB84966bD0Fe5dFf382FF2a7C32EBd48fe1389FC`](https://sepolia.etherscan.io/address/0xFB84966bD0Fe5dFf382FF2a7C32EBd48fe1389FC) |
+| ModularCompliance | [`0xC43c0bb2b4dB54578342D56a83856B4a52b875De`](https://sepolia.etherscan.io/address/0xC43c0bb2b4dB54578342D56a83856B4a52b875De) |
+| CountryRestrictModule | [`0x4575739bf5502C830CC7d0d54e91D69eAB6651dA`](https://sepolia.etherscan.io/address/0x4575739bf5502C830CC7d0d54e91D69eAB6651dA) |
+| MaxHoldersModule | [`0xB2cb0f61f0f1ca6cC527C7Ebc47fB6eE815362c6`](https://sepolia.etherscan.io/address/0xB2cb0f61f0f1ca6cC527C7Ebc47fB6eE815362c6) |
+| DistributionModule | [`0x98cBcc64616C32337d8B7d75019E35F1F1Eca401`](https://sepolia.etherscan.io/address/0x98cBcc64616C32337d8B7d75019E35F1F1Eca401) |
+| CorporateActions | [`0x60F014D5D1c2169DfA6A4D2755935A9aD22c9bE9`](https://sepolia.etherscan.io/address/0x60F014D5D1c2169DfA6A4D2755935A9aD22c9bE9) |
+| MockUSDC (test payment token) | [`0xD79f9C60Eb928f4a428c66821fF852b5cD476a30`](https://sepolia.etherscan.io/address/0xD79f9C60Eb928f4a428c66821fF852b5cD476a30) |
+| DemoOperator (testnet only) | [`0x32D06546774E0788BE7E792652D3c26f9821749c`](https://sepolia.etherscan.io/address/0x32D06546774E0788BE7E792652D3c26f9821749c) |
+
+The machine-readable list the console loads is `docs/console/deployments/11155111.json`.
+
 ## What this kit is not
 
 - **Not a full ERC-3643 (T-REX) implementation.** It follows the same model and function names (identity
@@ -151,7 +192,6 @@ Then work through `docs/ISSUER-CHECKLIST.md`.
 
 ## Roadmap
 
-- Public Sepolia deployment of the demo.
 - LayerZero and CCIP adapters for the gateway.
 - Fee module (management fee accrual by share dilution).
 
